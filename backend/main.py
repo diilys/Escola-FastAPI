@@ -48,14 +48,29 @@ def pagina_cadastro_aluno():
     return FileResponse(FRONTEND_DIR / "cadastrodealuno.html")
 
 
+@app.get("/alunos-lista", include_in_schema=False)
+def pagina_lista_alunos():
+    return FileResponse(FRONTEND_DIR / "alunos.html")
+
+
 @app.get("/cadastro-professor", include_in_schema=False)
 def pagina_cadastro_professor():
     return FileResponse(FRONTEND_DIR / "cadastrodeprofessor.html")
 
 
+@app.get("/professores-lista", include_in_schema=False)
+def pagina_lista_professores():
+    return FileResponse(FRONTEND_DIR / "professores.html")
+
+
 @app.get("/cadastro-funcionario", include_in_schema=False)
 def pagina_cadastro_funcionario():
     return FileResponse(FRONTEND_DIR / "cadastrodefuncionario.html")
+
+
+@app.get("/funcionarios-lista", include_in_schema=False)
+def pagina_lista_funcionarios():
+    return FileResponse(FRONTEND_DIR / "funcionarios.html")
 
 
 # ==========================================
@@ -80,7 +95,7 @@ def listar_alunos():
             "nome": registro[1],
             "cpf": registro[2],
             "email": registro[3],
-            "data_nascimento": registro[4],
+            "data_nascimento": str(registro[4]) if registro[4] else "",
             "telefone": registro[5],
             "ra": registro[6],
             "cidade": registro[7]
@@ -122,7 +137,7 @@ def cadastrar_aluno(aluno: AlunoCreate):
             "nome": aluno.nome,
             "cpf": aluno.cpf,
             "email": aluno.email,
-            "data_nascimento": aluno.data_nascimento,
+            "data_nascimento": str(aluno.data_nascimento),
             "telefone": aluno.telefone,
             "ra": aluno.ra,
             "cidade": aluno.cidade
@@ -177,7 +192,7 @@ def listar_professores():
             "nome": registro[1],
             "cpf": registro[2],
             "email": registro[3],
-            "data_nascimento": registro[4],
+            "data_nascimento": str(registro[4]) if registro[4] else "",
             "telefone": registro[5],
             "cidade": registro[6]
         }
@@ -217,7 +232,7 @@ def cadastrar_professor(professor: ProfessorCreate):
             "nome": professor.nome,
             "cpf": professor.cpf,
             "email": professor.email,
-            "data_nascimento": professor.data_nascimento,
+            "data_nascimento": str(professor.data_nascimento),
             "telefone": professor.telefone,
             "cidade": professor.cidade
         }
@@ -271,7 +286,7 @@ def listar_funcionarios():
             "nome": registro[1],
             "cpf": registro[2],
             "email": registro[3],
-            "data_nascimento": registro[4],
+            "data_nascimento": str(registro[4]) if registro[4] else "",
             "telefone": registro[5],
             "cidade": registro[6]
         }
@@ -311,7 +326,7 @@ def cadastrar_funcionario(funcionario: FuncionarioCreate):
             "nome": funcionario.nome,
             "cpf": funcionario.cpf,
             "email": funcionario.email,
-            "data_nascimento": funcionario.data_nascimento,
+            "data_nascimento": str(funcionario.data_nascimento),
             "telefone": funcionario.telefone,
             "cidade": funcionario.cidade
         }

@@ -34,7 +34,9 @@ if (formulario) {
             if (resposta.ok) {
                 mensagem.textContent = "Funcionário cadastrado com sucesso!";
                 formulario.reset();
-                console.log("Funcionário cadastrado com sucesso. ID gerado:", resultado.id);
+                console.log("Funcionário cadastrado com sucesso:", resultado);
+
+                carregarFuncionarios();
             } else {
                 const detalheErro = obterMensagemErro(resultado);
                 mensagem.textContent = "Erro ao cadastrar funcionário: " + detalheErro;
@@ -78,3 +80,68 @@ function obterMensagemErro(resultado) {
 
     return JSON.stringify(resultado.detail);
 }
+
+
+
+async function carregarFuncionarios() {
+    const tabela = document.getElementById("listaFuncionarios");
+
+    if (!tabela) {
+        return;
+    }
+
+    try {
+        const resposta = await fetch("/funcionarios");
+
+        if (!resposta.ok) {
+            throw new Error("Erro ao buscar funcionários.");
+        }
+
+        const funcionarios = await resposta.json();
+
+        tabela.innerHTML = "";
+
+        if (funcionarios.length === 0) {
+            tabela.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center;">
+                        Nenhum funcionário cadastrado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        funcionarios.forEach(funcionario => {
+            const linha = document.createElement("tr");
+
+            const dataFormatada = funcionario.data_nascimento ? funcionario.data_nascimento.split("T")[0] : "-";
+
+            linha.innerHTML = `
+                <td>${funcionario.id || funcionario.codFunc || "-"}</td>
+                <td>${funcionario.nome || "-"}</td>
+                <td>${funcionario.cpf || "-"}</td>
+                <td>${funcionario.email || "-"}</td>
+                <td>${dataFormatada}</td>
+                <td>${funcionario.telefone || "-"}</td>
+                <td>${funcionario.cidade || "-"}</td>
+            `;
+
+            tabela.appendChild(linha);
+        });
+
+    } catch (erro) {
+        console.error("Erro ao carregar funcionários:", erro);
+
+        tabela.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center;">
+                    Erro ao carregar os funcionários.
+                </td>
+            </tr>
+        `;
+    }
+}
+
+
+carregarFuncionarios();

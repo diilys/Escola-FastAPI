@@ -34,7 +34,9 @@ if (formulario) {
             if (resposta.ok) {
                 mensagem.textContent = "Professor cadastrado com sucesso!";
                 formulario.reset();
-                console.log("Professor cadastrado com sucesso. ID gerado:", resultado.id);
+                console.log("Professor cadastrado com sucesso:", resultado);
+
+                carregarProfessores();
             } else {
                 const detalheErro = obterMensagemErro(resultado);
                 mensagem.textContent = "Erro ao cadastrar professor: " + detalheErro;
@@ -78,3 +80,68 @@ function obterMensagemErro(resultado) {
 
     return JSON.stringify(resultado.detail);
 }
+
+
+
+async function carregarProfessores() {
+    const tabela = document.getElementById("listaProfessores");
+
+    if (!tabela) {
+        return;
+    }
+
+    try {
+        const resposta = await fetch("/professores");
+
+        if (!resposta.ok) {
+            throw new Error("Erro ao buscar professores.");
+        }
+
+        const professores = await resposta.json();
+
+        tabela.innerHTML = "";
+
+        if (professores.length === 0) {
+            tabela.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center;">
+                        Nenhum professor cadastrado.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        professores.forEach(professor => {
+            const linha = document.createElement("tr");
+
+            const dataFormatada = professor.data_nascimento ? professor.data_nascimento.split("T")[0] : "-";
+
+            linha.innerHTML = `
+                <td>${professor.id || professor.codProf || "-"}</td>
+                <td>${professor.nome || "-"}</td>
+                <td>${professor.cpf || "-"}</td>
+                <td>${professor.email || "-"}</td>
+                <td>${dataFormatada}</td>
+                <td>${professor.telefone || "-"}</td>
+                <td>${professor.cidade || "-"}</td>
+            `;
+
+            tabela.appendChild(linha);
+        });
+
+    } catch (erro) {
+        console.error("Erro ao carregar professores:", erro);
+
+        tabela.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center;">
+                    Erro ao carregar os professores.
+                </td>
+            </tr>
+        `;
+    }
+}
+
+
+carregarProfessores();
