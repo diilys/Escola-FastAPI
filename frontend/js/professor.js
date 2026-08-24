@@ -5,7 +5,7 @@ if (formulario) {
     formulario.addEventListener("submit", async function (evento) {
         evento.preventDefault();
 
-        mensagem.textContent = "";
+        mensagem.textContent = "Cadastrando...";
 
         const professor = {
             nome: document.getElementById("nome").value,
@@ -25,15 +25,20 @@ if (formulario) {
                 body: JSON.stringify(professor)
             });
 
-            const resultado = await resposta.json();
+            let resultado = {};
+            const contentType = resposta.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                resultado = await resposta.json();
+            }
 
             if (resposta.ok) {
                 mensagem.textContent = "Professor cadastrado com sucesso!";
                 formulario.reset();
-                console.log("Professor cadastrado:", resultado);
+                console.log("Professor cadastrado com sucesso. ID gerado:", resultado.id);
             } else {
-                mensagem.textContent = "Erro ao cadastrar professor: " + obterMensagemErro(resultado);
-                console.error("Erro da API:", resultado);
+                const detalheErro = obterMensagemErro(resultado);
+                mensagem.textContent = "Erro ao cadastrar professor: " + detalheErro;
+                console.error("Erro da API:", resposta.status, resultado);
             }
 
         } catch (erro) {
@@ -44,14 +49,18 @@ if (formulario) {
 }
 
 function obterMensagemErro(resultado) {
-    if (!resultado.detail) {
-        return "Dados inválidos.";
+    if (!resultado || !resultado.detail) {
+        return "Erro interno do servidor sem detalhes.";
+    }
+
+    if (typeof resultado.detail === "string") {
+        return resultado.detail;
     }
 
     if (Array.isArray(resultado.detail)) {
         return resultado.detail
             .map(erro => {
-                const campo = erro.loc?.[1];
+                const campo = erro.loc?.[erro.loc.length - 1];
 
                 const mensagens = {
                     email: "E-mail inválido.",
@@ -62,10 +71,10 @@ function obterMensagemErro(resultado) {
                     cidade: "Cidade inválida."
                 };
 
-                return mensagens[campo] || erro.msg;
+                return mensagens[campo] || `Campo '${campo}': ${erro.msg}`;
             })
-            .join(" ");
+            .join(" | ");
     }
 
-    return resultado.detail;
+    return JSON.stringify(resultado.detail);
 }

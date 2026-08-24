@@ -1,9 +1,10 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from mysql.connector import IntegrityError
+from mysql.connector import IntegrityError, Error as MySQLError
 
 from backend.database import criar_conexao
 from backend.schemas import (
@@ -17,6 +18,15 @@ from backend.schemas import (
 
 
 app = FastAPI()
+
+# Permite chamadas do JavaScript de qualquer origem
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -32,17 +42,32 @@ app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
 def pagina_inicial():
     return FileResponse(FRONTEND_DIR / "index.html")
 
+
 @app.get("/cadastro-aluno", include_in_schema=False)
 def pagina_cadastro_aluno():
     return FileResponse(FRONTEND_DIR / "cadastrodealuno.html")
 
+
+@app.get("/cadastro-professor", include_in_schema=False)
+def pagina_cadastro_professor():
+    return FileResponse(FRONTEND_DIR / "cadastrodeprofessor.html")
+
+
+@app.get("/cadastro-funcionario", include_in_schema=False)
+def pagina_cadastro_funcionario():
+    return FileResponse(FRONTEND_DIR / "cadastrodefuncionario.html")
+
+
+# ==========================================
+# ROTAS DE ALUNOS (Tabela: aluno)
+# ==========================================
 
 @app.get("/alunos", response_model=list[AlunoResponse])
 def listar_alunos():
     conexao = criar_conexao()
     cursor = conexao.cursor()
     
-    cursor.execute("SELECT * FROM alunos")
+    cursor.execute("SELECT * FROM aluno")
     registros = cursor.fetchall()
 
     cursor.close()
@@ -51,7 +76,7 @@ def listar_alunos():
     alunos = []
     for registro in registros:
         aluno = {
-            "id": registro[0],  # codAluno mapeado para id
+            "id": registro[0],  # codAluno
             "nome": registro[1],
             "cpf": registro[2],
             "email": registro[3],
@@ -71,7 +96,7 @@ def cadastrar_aluno(aluno: AlunoCreate):
     cursor = conexao.cursor()
 
     sql = """
-        INSERT INTO alunos
+        INSERT INTO aluno
         (nome, cpf, email, data_nascimento, telefone, ra, cidade)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
     """
@@ -109,12 +134,20 @@ def cadastrar_aluno(aluno: AlunoCreate):
         if erro.errno == 1062:
             raise HTTPException(
                 status_code=409,
-                detail="CPF já cadastrado."
+                detail="CPF ou RA já cadastrado."
             )
 
         raise HTTPException(
+            status_code=400,
+            detail=f"Erro de integridade no banco: {erro.msg}"
+        )
+
+    except MySQLError as erro:
+        conexao.rollback()
+        print(f"Erro no MySQL: {erro}")
+        raise HTTPException(
             status_code=500,
-            detail="Erro de integridade no banco de dados."
+            detail=f"Erro no banco de dados: {erro.msg}"
         )
 
     finally:
@@ -122,18 +155,16 @@ def cadastrar_aluno(aluno: AlunoCreate):
         conexao.close()
 
 
-
-@app.get("/cadastro-professor", include_in_schema=False)
-def pagina_cadastro_professor():
-    return FileResponse(FRONTEND_DIR / "cadastrodeprofessor.html")
-
+# ==========================================
+# ROTAS DE PROFESSORES (Tabela: professor)
+# ==========================================
 
 @app.get("/professores", response_model=list[ProfessorResponse])
 def listar_professores():
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
-    cursor.execute("SELECT * FROM professores")
+    cursor.execute("SELECT * FROM professor")
     registros = cursor.fetchall()
 
     cursor.close()
@@ -142,7 +173,7 @@ def listar_professores():
     professores = []
     for registro in registros:
         professor = {
-            "id": registro[0],
+            "id": registro[0],  # codProf
             "nome": registro[1],
             "cpf": registro[2],
             "email": registro[3],
@@ -161,7 +192,7 @@ def cadastrar_professor(professor: ProfessorCreate):
     cursor = conexao.cursor()
 
     sql = """
-        INSERT INTO professores
+        INSERT INTO professor
         (nome, cpf, email, data_nascimento, telefone, cidade)
         VALUES (%s, %s, %s, %s, %s, %s)
     """
@@ -201,8 +232,16 @@ def cadastrar_professor(professor: ProfessorCreate):
             )
 
         raise HTTPException(
+            status_code=400,
+            detail=f"Erro de integridade no banco: {erro.msg}"
+        )
+
+    except MySQLError as erro:
+        conexao.rollback()
+        print(f"Erro no MySQL: {erro}")
+        raise HTTPException(
             status_code=500,
-            detail="Erro de integridade no banco de dados."
+            detail=f"Erro no banco de dados: {erro.msg}"
         )
 
     finally:
@@ -210,18 +249,16 @@ def cadastrar_professor(professor: ProfessorCreate):
         conexao.close()
 
 
-
-@app.get("/cadastro-funcionario", include_in_schema=False)
-def pagina_cadastro_funcionario():
-    return FileResponse(FRONTEND_DIR / "cadastrodefuncionario.html")
-
+# ==========================================
+# ROTAS DE FUNCIONÁRIOS (Tabela: funcionario)
+# ==========================================
 
 @app.get("/funcionarios", response_model=list[FuncionarioResponse])
 def listar_funcionarios():
     conexao = criar_conexao()
     cursor = conexao.cursor()
 
-    cursor.execute("SELECT * FROM funcionarios")
+    cursor.execute("SELECT * FROM funcionario")
     registros = cursor.fetchall()
 
     cursor.close()
@@ -230,7 +267,7 @@ def listar_funcionarios():
     funcionarios = []
     for registro in registros:
         funcionario = {
-            "id": registro[0],
+            "id": registro[0],  # codFunc
             "nome": registro[1],
             "cpf": registro[2],
             "email": registro[3],
@@ -249,7 +286,7 @@ def cadastrar_funcionario(funcionario: FuncionarioCreate):
     cursor = conexao.cursor()
 
     sql = """
-        INSERT INTO funcionarios
+        INSERT INTO funcionario
         (nome, cpf, email, data_nascimento, telefone, cidade)
         VALUES (%s, %s, %s, %s, %s, %s)
     """
@@ -289,8 +326,16 @@ def cadastrar_funcionario(funcionario: FuncionarioCreate):
             )
 
         raise HTTPException(
+            status_code=400,
+            detail=f"Erro de integridade no banco: {erro.msg}"
+        )
+
+    except MySQLError as erro:
+        conexao.rollback()
+        print(f"Erro no MySQL: {erro}")
+        raise HTTPException(
             status_code=500,
-            detail="Erro de integridade no banco de dados."
+            detail=f"Erro no banco de dados: {erro.msg}"
         )
 
     finally:

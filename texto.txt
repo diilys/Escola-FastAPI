@@ -1,24 +1,43 @@
-considerando os arquivos:
--main.py
-
+main.py:
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from mysql.connector import IntegrityError
+from mysql.connector import IntegrityError, Error as MySQLError
 
 from backend.database import criar_conexao
-from backend.schemas import AlunoCreate, AlunoResponse
+from backend.schemas import (
+    AlunoCreate,
+    AlunoResponse,
+    ProfessorCreate,
+    ProfessorResponse,
+    FuncionarioCreate,
+    FuncionarioResponse
+)
 
 
 app = FastAPI()
+
+# Permite chamadas do JavaScript de qualquer origem
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
 
+
+# ==========================================
+# ROTAS DE PÁGINAS (HTML)
+# ==========================================
 
 @app.get("/", include_in_schema=False)
 def pagina_inicial():
@@ -32,20 +51,18 @@ def pagina_cadastro_aluno():
 @app.get("/alunos", response_model=list[AlunoResponse])
 def listar_alunos():
     conexao = criar_conexao()
-
     cursor = conexao.cursor()
+    
     cursor.execute("SELECT * FROM alunos")
-
     registros = cursor.fetchall()
 
     cursor.close()
     conexao.close()
 
     alunos = []
-
     for registro in registros:
         aluno = {
-            "codAluno": registro[0],
+            "id": registro[0],  # codAluno mapeado para id
             "nome": registro[1],
             "cpf": registro[2],
             "email": registro[3],
@@ -54,13 +71,12 @@ def listar_alunos():
             "ra": registro[6],
             "cidade": registro[7]
         }
-
         alunos.append(aluno)
 
     return alunos
 
 
-@app.post("/alunos", response_model=AlunoResponse)
+@app.post("/alunos", response_model=AlunoResponse, status_code=201)
 def cadastrar_aluno(aluno: AlunoCreate):
     conexao = criar_conexao()
     cursor = conexao.cursor()
@@ -104,6 +120,101 @@ def cadastrar_aluno(aluno: AlunoCreate):
         if erro.errno == 1062:
             raise HTTPException(
                 status_code=409,
+                detail="CPF ou RA já cadastrado."
+            )
+
+        raise HTTPException(
+            status_code=400,
+            detail=f"Erro de integridade no banco: {erro.msg}"
+        )
+
+    except MySQLError as erro:
+        conexao.rollback()
+        print(f"Erro no MySQL: {erro}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro no banco de dados: {erro.msg}"
+        )
+
+    finally:
+        cursor.close()
+        conexao.close()
+
+
+@app.get("/cadastro-professor", include_in_schema=False)
+def pagina_cadastro_professor():
+    return FileResponse(FRONTEND_DIR / "cadastrodeprofessor.html")
+
+
+@app.get("/professores", response_model=list[ProfessorResponse])
+def listar_professores():
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    cursor.execute("SELECT * FROM professores")
+    registros = cursor.fetchall()
+
+    cursor.close()
+    conexao.close()
+
+    professores = []
+    for registro in registros:
+        professor = {
+            "id": registro[0],
+            "nome": registro[1],
+            "cpf": registro[2],
+            "email": registro[3],
+            "data_nascimento": registro[4],
+            "telefone": registro[5],
+            "cidade": registro[6]
+        }
+        professores.append(professor)
+
+    return professores
+
+
+@app.post("/professores", response_model=ProfessorResponse, status_code=201)
+def cadastrar_professor(professor: ProfessorCreate):
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    sql = """
+        INSERT INTO professores
+        (nome, cpf, email, data_nascimento, telefone, cidade)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """
+
+    valores = (
+        professor.nome,
+        professor.cpf,
+        professor.email,
+        professor.data_nascimento,
+        professor.telefone,
+        professor.cidade
+    )
+
+    try:
+        cursor.execute(sql, valores)
+        conexao.commit()
+
+        id_professor = cursor.lastrowid
+
+        return {
+            "id": id_professor,
+            "nome": professor.nome,
+            "cpf": professor.cpf,
+            "email": professor.email,
+            "data_nascimento": professor.data_nascimento,
+            "telefone": professor.telefone,
+            "cidade": professor.cidade
+        }
+
+    except IntegrityError as erro:
+        conexao.rollback()
+
+        if erro.errno == 1062:
+            raise HTTPException(
+                status_code=409,
                 detail="CPF já cadastrado."
             )
 
@@ -117,48 +228,170 @@ def cadastrar_aluno(aluno: AlunoCreate):
         conexao.close()
 
 
--index.html
-
-<!DOCTYPE html>
-<html lang="pt-BR">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Cadastro de Alunos</title>
-</head>
-
-<body>
-<h1>Sistema Escola</h1>
-
-<h2>Cadastros</h2>
-
-<nav>
-    <a href="/cadastro-aluno">
-        Cadastro de Alunos
-    </a>
-</nav>
-</body>
-
-</html>
+@app.get("/cadastro-funcionario", include_in_schema=False)
+def pagina_cadastro_funcionario():
+    return FileResponse(FRONTEND_DIR / "cadastrodefuncionario.html")
 
 
--cadastrodealuno
+@app.get("/funcionarios", response_model=list[FuncionarioResponse])
+def listar_funcionarios():
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
 
+    cursor.execute("SELECT * FROM funcionarios")
+    registros = cursor.fetchall()
+
+    cursor.close()
+    conexao.close()
+
+    funcionarios = []
+    for registro in registros:
+        funcionario = {
+            "id": registro[0],
+            "nome": registro[1],
+            "cpf": registro[2],
+            "email": registro[3],
+            "data_nascimento": registro[4],
+            "telefone": registro[5],
+            "cidade": registro[6]
+        }
+        funcionarios.append(funcionario)
+
+    return funcionarios
+
+
+@app.post("/funcionarios", response_model=FuncionarioResponse, status_code=201)
+def cadastrar_funcionario(funcionario: FuncionarioCreate):
+    conexao = criar_conexao()
+    cursor = conexao.cursor()
+
+    sql = """
+        INSERT INTO funcionarios
+        (nome, cpf, email, data_nascimento, telefone, cidade)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """
+
+    valores = (
+        funcionario.nome,
+        funcionario.cpf,
+        funcionario.email,
+        funcionario.data_nascimento,
+        funcionario.telefone,
+        funcionario.cidade
+    )
+
+    try:
+        cursor.execute(sql, valores)
+        conexao.commit()
+
+        id_funcionario = cursor.lastrowid
+
+        return {
+            "id": id_funcionario,
+            "nome": funcionario.nome,
+            "cpf": funcionario.cpf,
+            "email": funcionario.email,
+            "data_nascimento": funcionario.data_nascimento,
+            "telefone": funcionario.telefone,
+            "cidade": funcionario.cidade
+        }
+
+    except IntegrityError as erro:
+        conexao.rollback()
+
+        if erro.errno == 1062:
+            raise HTTPException(
+                status_code=409,
+                detail="CPF já cadastrado."
+            )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Erro de integridade no banco de dados."
+        )
+
+    finally:
+        cursor.close()
+        conexao.close()
+
+schemas.py:
+from datetime import date
+
+from pydantic import BaseModel, EmailStr
+
+
+class AlunoCreate(BaseModel):
+    nome: str
+    cpf: str
+    email: EmailStr
+    data_nascimento: date
+    telefone: str
+    ra: str
+    cidade: str
+
+
+class AlunoResponse(BaseModel):
+    id: int
+    nome: str
+    cpf: str
+    email: EmailStr
+    data_nascimento: date
+    telefone: str
+    ra: str
+    cidade: str
+
+
+class ProfessorCreate(BaseModel):
+    nome: str
+    cpf: str
+    email: EmailStr
+    data_nascimento: date
+    telefone: str
+    cidade: str
+
+
+class ProfessorResponse(BaseModel):
+    id: int
+    nome: str
+    cpf: str
+    email: EmailStr
+    data_nascimento: date
+    telefone: str
+    cidade: str
+
+
+class FuncionarioCreate(BaseModel):
+    nome: str
+    cpf: str
+    email: EmailStr
+    data_nascimento: date
+    telefone: str
+    cidade: str
+
+
+class FuncionarioResponse(BaseModel):
+    id: int
+    nome: str
+    cpf: str
+    email: EmailStr
+    data_nascimento: date
+    telefone: str
+    cidade: str
+
+cadastrodefuncionario.html:
 <!DOCTYPE html>
 <html lang="pt-br">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cadastro de Alunos</title>
+    <title>Cadastro de Funcionários</title>
 </head>
 
 <body>
-    <h1>Cadastro de Alunos</h1>
+    <h1>Cadastro de Funcionários</h1>
 
-    <form id="form-aluno">
+    <form id="form-funcionario">
 
         <div>
             <label for="nome">Nome:</label>
@@ -186,11 +419,6 @@ def cadastrar_aluno(aluno: AlunoCreate):
         </div>
 
         <div>
-            <label for="ra">RA:</label>
-            <input type="text" id="ra" name="ra" required>
-        </div>
-
-        <div>
             <label for="cidade">Cidade:</label>
             <input type="text" id="cidade" name="cidade" required>
         </div>
@@ -203,110 +431,78 @@ def cadastrar_aluno(aluno: AlunoCreate):
 
     <a href="/">Voltar para o início</a>
 
-    <script src="/frontend/js/aluno.js"></script>
+    <script src="/frontend/js/app.js"></script>
+    <script src="/frontend/js/funcionario.js"></script>
 </body>
 
 </html>
 
-
--app.js
-
-const formulario = document.getElementById("form-aluno");
+funcionario.js:
+const formulario = document.getElementById("form-funcionario");
 const mensagem = document.getElementById("mensagem");
 
-formulario.addEventListener("submit", async function(evento) {
-    evento.preventDefault();
+if (formulario) {
+    formulario.addEventListener("submit", async function (evento) {
+        evento.preventDefault();
 
-    mensagem.textContent = "";
+        mensagem.textContent = "";
 
-    const aluno = {
-        nome: document.getElementById("nome").value,
-        cpf: document.getElementById("cpf").value,
-        email: document.getElementById("email").value,
-        data_nascimento: document.getElementById("data_nascimento").value,
-        telefone: document.getElementById("telefone").value,
-        ra: document.getElementById("ra").value,
-        cidade: document.getElementById("cidade").value
-    };
+        const funcionario = {
+            nome: document.getElementById("nome").value,
+            cpf: document.getElementById("cpf").value,
+            email: document.getElementById("email").value,
+            data_nascimento: document.getElementById("data_nascimento").value,
+            telefone: document.getElementById("telefone").value,
+            cidade: document.getElementById("cidade").value
+        };
 
-    try {
+        try {
+            const resposta = await fetch("/funcionarios", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(funcionario)
+            });
 
-        const resposta = await fetch("/alunos", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(aluno)
-        });
+            const resultado = await resposta.json();
 
-        const resultado = await resposta.json();
+            if (resposta.ok) {
+                mensagem.textContent = "Funcionário cadastrado com sucesso!";
+                formulario.reset();
+                console.log("Funcionário cadastrado:", resultado);
+            } else {
+                mensagem.textContent = "Erro ao cadastrar funcionário: " + obterMensagemErro(resultado);
+                console.error("Erro da API:", resultado);
+            }
 
-        if (resposta.ok) {
-
-            mensagem.textContent = "Aluno cadastrado com sucesso!";
-
-            formulario.reset();
-
-            console.log("Aluno cadastrado:", resultado);
-
-        } else {
-
-            mensagem.textContent = "Erro ao cadastrar aluno: " + obterMensagemErro(resultado);
-
-            console.error("Erro da API:", resultado);
+        } catch (erro) {
+            mensagem.textContent = "Não foi possível conectar ao servidor.";
+            console.error("Erro de conexão:", erro);
         }
-
-    } catch (erro) {
-
-        mensagem.textContent = "Não foi possível conectar ao servidor.";
-
-        console.error("Erro de conexão:", erro);
-    }
-});
-
+    });
+}
 
 function obterMensagemErro(resultado) {
-
     if (!resultado.detail) {
         return "Dados inválidos.";
     }
 
     if (Array.isArray(resultado.detail)) {
-
         return resultado.detail
             .map(erro => {
-
                 const campo = erro.loc?.[1];
 
-                if (campo === "email") {
-                    return "E-mail inválido.";
-                }
+                const mensagens = {
+                    email: "E-mail inválido.",
+                    nome: "Nome inválido.",
+                    cpf: "CPF inválido.",
+                    data_nascimento: "Data de nascimento inválida.",
+                    telefone: "Telefone inválido.",
+                    cidade: "Cidade inválida."
+                };
 
-                if (campo === "nome") {
-                    return "Nome inválido.";
-                }
-
-                if (campo === "cpf") {
-                    return "CPF inválido.";
-                }
-
-                if (campo === "data_nascimento") {
-                    return "Data de nascimento inválida.";
-                }
-                
-                if (campo === "telefone") {
-                    return "Telefone inválido.";
-                }
-
-                if (campo === "ra") {
-                    return "RA inválido.";
-                }
-
-                if (campo === "cidade") {
-                    return "Cidade inválida.";
-                }
-
-                return erro.msg;
+                return mensagens[campo] || erro.msg;
             })
             .join(" ");
     }
@@ -314,27 +510,159 @@ function obterMensagemErro(resultado) {
     return resultado.detail;
 }
 
-e a sugestão de:
-O app.js poderá futuramente ficar responsável por comportamentos gerais do sistema, enquanto aluno.js ficará responsável pelo cadastro de alunos.
-Exemplo
+professor.js:
+const formulario = document.getElementById("form-professor");
+const mensagem = document.getElementById("mensagem");
 
+if (formulario) {
+    formulario.addEventListener("submit", async function (evento) {
+        evento.preventDefault();
+
+        mensagem.textContent = "";
+
+        const professor = {
+            nome: document.getElementById("nome").value,
+            cpf: document.getElementById("cpf").value,
+            email: document.getElementById("email").value,
+            data_nascimento: document.getElementById("data_nascimento").value,
+            telefone: document.getElementById("telefone").value,
+            cidade: document.getElementById("cidade").value
+        };
+
+        try {
+            const resposta = await fetch("/professores", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(professor)
+            });
+
+            const resultado = await resposta.json();
+
+            if (resposta.ok) {
+                mensagem.textContent = "Professor cadastrado com sucesso!";
+                formulario.reset();
+                console.log("Professor cadastrado:", resultado);
+            } else {
+                mensagem.textContent = "Erro ao cadastrar professor: " + obterMensagemErro(resultado);
+                console.error("Erro da API:", resultado);
+            }
+
+        } catch (erro) {
+            mensagem.textContent = "Não foi possível conectar ao servidor.";
+            console.error("Erro de conexão:", erro);
+        }
+    });
+}
+
+function obterMensagemErro(resultado) {
+    if (!resultado.detail) {
+        return "Dados inválidos.";
+    }
+
+    if (Array.isArray(resultado.detail)) {
+        return resultado.detail
+            .map(erro => {
+                const campo = erro.loc?.[1];
+
+                const mensagens = {
+                    email: "E-mail inválido.",
+                    nome: "Nome inválido.",
+                    cpf: "CPF inválido.",
+                    data_nascimento: "Data de nascimento inválida.",
+                    telefone: "Telefone inválido.",
+                    cidade: "Cidade inválida."
+                };
+
+                return mensagens[campo] || erro.msg;
+            })
+            .join(" ");
+    }
+
+    return resultado.detail;
+}
+
+aluno.js:
 const formulario = document.getElementById("form-aluno");
 const mensagem = document.getElementById("mensagem");
 
-formulario.addEventListener("submit", async function(evento) {
-    evento.preventDefault();
+if (formulario) {
+    formulario.addEventListener("submit", async function (evento) {
+        evento.preventDefault();
 
-     const aluno = {
-        nome: document.getElementById("nome").value,
-        cpf: document.getElementById("cpf").value,
-        email: document.getElementById("email").value,
-        data_nascimento: document.getElementById("data_nascimento").value,
-        telefone: document.getElementById("telefone").value,
-        ra: document.getElementById("ra").value,
-        cidade: document.getElementById("cidade").value
-    };
+        mensagem.textContent = "Cadastrando...";
 
-    // Comunicação com a API...
-});
+        const aluno = {
+            nome: document.getElementById("nome").value,
+            cpf: document.getElementById("cpf").value,
+            email: document.getElementById("email").value,
+            data_nascimento: document.getElementById("data_nascimento").value,
+            telefone: document.getElementById("telefone").value,
+            ra: document.getElementById("ra").value,
+            cidade: document.getElementById("cidade").value
+        };
 
-e aplique o necessário
+        try {
+            const resposta = await fetch("/alunos", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(aluno)
+            });
+
+            let resultado = {};
+            const contentType = resposta.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                resultado = await resposta.json();
+            }
+
+            if (resposta.ok) {
+                mensagem.textContent = "Aluno cadastrado com sucesso!";
+                formulario.reset();
+                console.log("Aluno cadastrado:", resultado);
+            } else {
+                const detalheErro = obterMensagemErro(resultado);
+                mensagem.textContent = "Erro ao cadastrar aluno: " + detalheErro;
+                console.error("Erro da API:", resposta.status, resultado);
+            }
+
+        } catch (erro) {
+            mensagem.textContent = "Não foi possível conectar ao servidor.";
+            console.error("Erro de conexão:", erro);
+        }
+    });
+}
+
+function obterMensagemErro(resultado) {
+    if (!resultado || !resultado.detail) {
+        return "Erro interno do servidor sem detalhes.";
+    }
+
+    if (typeof resultado.detail === "string") {
+        return resultado.detail;
+    }
+
+    if (Array.isArray(resultado.detail)) {
+        return resultado.detail
+            .map(erro => {
+                const campo = erro.loc?.[erro.loc.length - 1];
+
+                const mensagens = {
+                    email: "E-mail inválido.",
+                    nome: "Nome inválido.",
+                    cpf: "CPF inválido.",
+                    data_nascimento: "Data de nascimento inválida.",
+                    telefone: "Telefone inválido.",
+                    ra: "RA inválido.",
+                    cidade: "Cidade inválida."
+                };
+
+                return mensagens[campo] || `Campo '${campo}': ${erro.msg}`;
+            })
+            .join(" | ");
+    }
+
+    return JSON.stringify(resultado.detail);
+}
