@@ -1,3 +1,5 @@
+let funcionarios = [];
+
 const formulario = document.getElementById("form-funcionario");
 const mensagem = document.getElementById("mensagem");
 
@@ -81,8 +83,6 @@ function obterMensagemErro(resultado) {
     return JSON.stringify(resultado.detail);
 }
 
-
-
 async function carregarFuncionarios() {
     const tabela = document.getElementById("listaFuncionarios");
 
@@ -97,38 +97,8 @@ async function carregarFuncionarios() {
             throw new Error("Erro ao buscar funcionários.");
         }
 
-        const funcionarios = await resposta.json();
-
-        tabela.innerHTML = "";
-
-        if (funcionarios.length === 0) {
-            tabela.innerHTML = `
-                <tr>
-                    <td colspan="7" style="text-align: center;">
-                        Nenhum funcionário cadastrado.
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        funcionarios.forEach(funcionario => {
-            const linha = document.createElement("tr");
-
-            const dataFormatada = funcionario.data_nascimento ? funcionario.data_nascimento.split("T")[0] : "-";
-
-            linha.innerHTML = `
-                <td>${funcionario.id || funcionario.codFunc || "-"}</td>
-                <td>${funcionario.nome || "-"}</td>
-                <td>${funcionario.cpf || "-"}</td>
-                <td>${funcionario.email || "-"}</td>
-                <td>${dataFormatada}</td>
-                <td>${funcionario.telefone || "-"}</td>
-                <td>${funcionario.cidade || "-"}</td>
-            `;
-
-            tabela.appendChild(linha);
-        });
+        funcionarios = await resposta.json();
+        exibirFuncionarios(funcionarios);
 
     } catch (erro) {
         console.error("Erro ao carregar funcionários:", erro);
@@ -143,5 +113,91 @@ async function carregarFuncionarios() {
     }
 }
 
+function exibirFuncionarios(listaFuncionarios) {
+    const tabela = document.getElementById("listaFuncionarios");
+
+    if (!tabela) {
+        return;
+    }
+
+    tabela.innerHTML = "";
+
+    if (listaFuncionarios.length === 0) {
+        tabela.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center;">
+                    Nenhum funcionário encontrado.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    listaFuncionarios.forEach(funcionario => {
+        const linha = document.createElement("tr");
+        const dataFormatada = funcionario.data_nascimento ? funcionario.data_nascimento.split("T")[0] : "-";
+        const codigo = funcionario.id || funcionario.codFuncionario || funcionario.codFunc || "-";
+
+        linha.innerHTML = `
+            <td>${codigo}</td>
+            <td>${funcionario.nome || "-"}</td>
+            <td>${funcionario.cpf || "-"}</td>
+            <td>${funcionario.email || "-"}</td>
+            <td>${dataFormatada}</td>
+            <td>${funcionario.telefone || "-"}</td>
+            <td>${funcionario.cidade || "-"}</td>
+        `;
+
+        tabela.appendChild(linha);
+    });
+}
+
+function filtrarFuncionarios() {
+    const campoElemento = document.getElementById("campoFiltro");
+    const textoElemento = document.getElementById("textoFiltro");
+
+    if (!campoElemento || !textoElemento) {
+        return;
+    }
+
+    const campo = campoElemento.value;
+    const texto = textoElemento.value.toLowerCase().trim();
+
+    const funcionariosFiltrados = funcionarios.filter(funcionario => {
+        let valor = funcionario[campo];
+        if (campo === "codFuncionario" && valor === undefined) {
+            valor = funcionario.id || funcionario.codFunc;
+        }
+
+        if (valor === null || valor === undefined) {
+            return false;
+        }
+
+        return String(valor).toLowerCase().includes(texto);
+    });
+
+    exibirFuncionarios(funcionariosFiltrados);
+}
+
+const textoFiltro = document.getElementById("textoFiltro");
+if (textoFiltro) {
+    textoFiltro.addEventListener("input", filtrarFuncionarios);
+}
+
+const campoFiltro = document.getElementById("campoFiltro");
+if (campoFiltro) {
+    campoFiltro.addEventListener("change", filtrarFuncionarios);
+}
+
+const btnLimparFiltro = document.getElementById("btnLimparFiltro");
+if (btnLimparFiltro) {
+    btnLimparFiltro.addEventListener("click", function() {
+        const campoTexto = document.getElementById("textoFiltro");
+        if (campoTexto) {
+            campoTexto.value = "";
+        }
+        exibirFuncionarios(funcionarios);
+    });
+}
 
 carregarFuncionarios();
